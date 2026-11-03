@@ -1,0 +1,6 @@
+# herdr-app 每次启动写进每个 mod 文件夹的类型与编辑器配置
+jsconfig.json
+*.d.ts
+.DS_Store
+# mod 运行时写入的缓存（项目头像等）
+.cache/

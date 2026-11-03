@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <rect width="320" height="200" fill="#f4f3f1"/>
+  <!-- sidebar: spaces and agents -->
+  <rect width="64" height="200" fill="#ecebe8"/>
+  <g fill="#c9c7c2">
+    <rect x="8" y="14" width="40" height="5" rx="2"/>
+    <rect x="8" y="30" width="8" height="8" rx="2" fill="#22a99a"/><rect x="20" y="32" width="30" height="4" rx="2"/>
+    <rect x="8" y="44" width="8" height="8" rx="2" fill="#e3814f"/><rect x="20" y="46" width="26" height="4" rx="2"/>
+    <rect x="8" y="58" width="8" height="8" rx="2" fill="#5b8def"/><rect x="20" y="60" width="32" height="4" rx="2"/>
+    <rect x="8" y="104" width="30" height="4" rx="2"/>
+    <rect x="8" y="116" width="44" height="4" rx="2"/><rect x="8" y="128" width="38" height="4" rx="2"/>
+  </g>
+  <!-- tab bar, with the MRs button lit -->
+  <rect x="64" width="256" height="18" fill="#ecebe8"/>
+  <rect x="70" y="4" width="34" height="10" rx="3" fill="#ffffff"/>
+  <rect x="290" y="4" width="24" height="10" rx="3" fill="#dcdad5"/>
+  <!-- terminal -->
+  <rect x="70" y="24" width="150" height="168" rx="5" fill="#ffffff" stroke="#dcdad5"/>
+  <g fill="#c9c7c2"><rect x="78" y="34" width="90" height="4" rx="2"/><rect x="78" y="44" width="120" height="4" rx="2"/><rect x="78" y="54" width="70" height="4" rx="2"/></g>
+  <!-- the MR panel -->
+  <rect x="226" y="24" width="88" height="168" rx="5" fill="#ffffff" stroke="#dcdad5"/>
+  <path d="M236 30l2 6 2-6 2 6h2l-6 4-6-4h2z" fill="#FC6D26"/>
+  <rect x="248" y="32" width="40" height="4" rx="2" fill="#9a978f"/>
+  <line x1="226" y1="44" x2="314" y2="44" stroke="#dcdad5"/>
+  <g>
+    <circle cx="236" cy="56" r="3" fill="none" stroke="#3fae6a" stroke-width="1.5"/><rect x="243" y="54" width="60" height="4" rx="2" fill="#6b6964"/>
+    <rect x="243" y="62" width="6" height="6" rx="1.5" fill="#8b7cf6"/><rect x="252" y="63" width="30" height="3" rx="1.5" fill="#c9c7c2"/>
+    <circle cx="236" cy="80" r="3" fill="none" stroke="#3fae6a" stroke-width="1.5"/><rect x="243" y="78" width="52" height="4" rx="2" fill="#6b6964"/>
+    <rect x="243" y="86" width="6" height="6" rx="1.5" fill="#22a99a"/><rect x="252" y="87" width="34" height="3" rx="1.5" fill="#c9c7c2"/>
+    <circle cx="236" cy="104" r="3" fill="none" stroke="#e05555" stroke-width="1.5"/><rect x="243" y="102" width="56" height="4" rx="2" fill="#6b6964"/>
+    <rect x="243" y="110" width="6" height="6" rx="1.5" fill="#e3814f"/><rect x="252" y="111" width="26" height="3" rx="1.5" fill="#c9c7c2"/>
+  </g>
+</svg>
