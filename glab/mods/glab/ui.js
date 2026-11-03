@@ -63,7 +63,7 @@ export function iconButton(t, id, name, tip, onClick, size = 14) {
   return div().id(id).flex_none().p(3).rounded(5).text_color(t.dim).cursor_pointer()
     .hover((s) => s.bg(t.hover).text_color(t.foreground))
     .tooltip(tip)
-    .on_click((e, cx) => { cx.stop_propagation(); onClick(e, cx); })
+    .on_click((e, cx) => { cx.stop_propagation(); onClick(e, cx); cx.notify(); })
     .child(icon(name, size));
 }
 
