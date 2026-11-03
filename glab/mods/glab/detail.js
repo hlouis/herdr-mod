@@ -43,9 +43,9 @@ function facts(v, t, mr) {
       .when(mr.roles.length > 0, (el) => el.child(h_flex().gap(4).flex_wrap().children(v.roleTitles(mr).map((r) => chip(t, r)))))
       .child(h_flex().gap(6).items_center().text_size(12).text_color(t.muted)
         .child(avatar(mr.author, 16)).child(mr.author).child(div().text_color(t.dim).child(`· updated ${ago(mr.updatedAt)} ago`)))
-      .when(Boolean(mr.pipeline || MERGE_PROBLEM[mr.mergeStatus]), (el) => el.child(h_flex().gap(6).items_center().text_size(12).text_color(t.muted)
-        .when(Boolean(mr.pipeline), (el) => el.child(pipelineIcon(t, mr.pipeline, 14)).child(`Pipeline ${pipelineLabel(mr.pipeline)}`))
-        .when(Boolean(MERGE_PROBLEM[mr.mergeStatus]), (el) => el.child(chip(t, MERGE_PROBLEM[mr.mergeStatus], t.ansi1))))) },
+      .child(h_flex().gap(6).items_center().text_size(12).text_color(t.muted)
+        .child(pipelineIcon(t, mr.pipeline, 14)).child(pipelineLabel(mr.pipeline))
+        .when(Boolean(MERGE_PROBLEM[mr.mergeStatus]), (el) => el.child(chip(t, MERGE_PROBLEM[mr.mergeStatus], t.ansi1)))) },
     { key: "actions", el: h_flex().px(14).pt(12).gap(6).flex_wrap()
       .child(local === "checked-out"
         ? button(t, "dt-jump", "square-arrow-right", "Open space", (_e, cx) => v.act(cx, "jump", mr), { primary: true, tip: "Go to the space that has it  g" })

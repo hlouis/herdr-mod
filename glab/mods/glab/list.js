@@ -47,7 +47,7 @@ function mrRow(v, t, mr) {
     })
     .on_click((_e, cx) => { v.sel = mr.url; v.openDetail(cx); cx.notify(); })
     .child(h_flex().gap(7).items_center().min_w(0)
-      .child(div().id(`pl-${mr.url}`).flex_none().tooltip(`Pipeline ${pipelineLabel(mr.pipeline)}`).child(pipelineIcon(t, mr.pipeline)))
+      .child(div().id(`pl-${mr.url}`).flex_none().tooltip(pipelineLabel(mr.pipeline)).child(pipelineIcon(t, mr.pipeline)))
       .child(div().flex_1().min_w(0).truncate().text_size(12.8).text_color(mr.draft ? t.muted : t.foreground).child(mr.title))
       .when(mr.draft, (el) => el.child(chip(t, "draft"))))
     .child(h_flex().pl(21).gap(7).items_center().min_w(0).text_size(11).text_color(t.dim)

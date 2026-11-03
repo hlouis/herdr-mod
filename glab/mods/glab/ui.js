@@ -38,13 +38,13 @@ const PIPELINE = {
   PENDING: ["clock", "dim"], CREATED: ["clock", "dim"], WAITING_FOR_RESOURCE: ["clock", "dim"], PREPARING: ["clock", "dim"], SCHEDULED: ["clock", "dim"],
 };
 
+// No pipeline: a dashed circle. A status GitLab adds later: a clock.
 export function pipelineIcon(t, status, size = 14) {
-  const p = PIPELINE[status];
-  if (!p) return div().size(size).flex_none();
+  const p = status ? PIPELINE[status] ?? ["clock", "dim"] : ["circle-dashed", "dim"];
   const el = icon(p[0], size, t[p[1]]);
   return status === "RUNNING" ? el.spin(1000) : el;
 }
-export const pipelineLabel = (status) => (status ? status.toLowerCase().replace(/_/g, " ") : "no pipeline");
+export const pipelineLabel = (status) => (status ? `Pipeline ${status.toLowerCase().replace(/_/g, " ")}` : "No pipeline");
 
 export function ago(ms) {
   const s = (Date.now() - ms) / 1000;
