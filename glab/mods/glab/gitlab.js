@@ -1,7 +1,5 @@
-// GitLab access, all through `glab api graphql`: the mod never sees a token.
+// GitLab access: GraphQL over `fetch`, with the token from config.js.
 // Queries and derived fields follow hlouis/herdr-glab doc/design.md §4.
-
-import { exec } from "herdr";
 
 const FRAGMENT = `
 fragment mr on MergeRequest {
@@ -76,49 +74,36 @@ mutation($id: DiscussionID!, $resolve: Boolean!) {
   discussionToggleResolve(input: { id: $id, resolve: $resolve }) { errors }
 }`;
 
-const UNAUTHORIZED = /\b401\b|unauthori[sz]ed|not logged in|glab auth login|invalid token|token (has )?expired/i;
+const WHO = `query { currentUser { username } }`;
 
-// The host glab is logged in to when there is only one (the self-hosted case,
-// where glab's own default is still gitlab.com), else glab's default host.
-export async function glabHost() {
-  const r = await exec("sh", ["-c", 'cat "${GLAB_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/glab-cli}/config.yml"']);
-  if (r.code !== 0) throw new Error("Can't read glab's config. Run `glab auth login` first.");
-  const lines = r.stdout.split("\n");
-  const start = lines.findIndex((l) => /^hosts:\s*$/.test(l));
-  const hosts = [];
-  if (start >= 0) {
-    const indent = lines.slice(start + 1).find((l) => /^\s+\S/.test(l))?.match(/^\s+/)[0] ?? "";
-    for (const l of lines.slice(start + 1)) {
-      if (/^\S/.test(l)) break;
-      const m = l.match(/^(\s+)([^\s:#][^:]*):\s*$/);
-      if (m && m[1] === indent) hosts.push(m[2]);
-    }
-  }
-  if (hosts.length === 1) return hosts[0];
-  const fallback = lines.map((l) => l.match(/^host:\s*(\S+)/)?.[1]).find(Boolean);
-  if (fallback) return fallback;
-  throw new Error(hosts.length ? `glab has several hosts (${hosts.join(", ")}) and no default.` : "glab is not logged in to any host.");
-}
+// Refused credentials, told apart so the panel can offer its settings.
+export class AuthError extends Error {}
 
-async function graphql(host, query, vars = {}) {
-  const args = ["api", "graphql", "--hostname", host, "-f", `query=${query}`];
-  for (const [k, v] of Object.entries(vars)) {
-    if (v === null || v === undefined) continue;
-    args.push(typeof v === "string" ? "-f" : "-F", `${k}=${v}`);
-  }
+// One GraphQL request to the instance in `conn` ({ url, token }).
+async function graphql(conn, query, variables = {}) {
   let r;
   try {
-    r = await exec("glab", args);
-  } catch {
-    throw new Error("glab is not installed (https://gitlab.com/gitlab-org/cli).");
+    r = await fetch(`${conn.url}/api/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${conn.token}` },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (e) {
+    throw new Error(`Can't reach ${conn.url}: ${e?.message ?? e}`);
   }
-  if (r.code !== 0) {
-    const out = `${r.stderr}\n${r.stdout}`.trim();
-    throw new Error(UNAUTHORIZED.test(out) ? `glab is not logged in to ${host}: run \`glab auth login --hostname ${host}\`.` : out || `glab exited ${r.code}`);
-  }
-  const resp = JSON.parse(r.stdout);
+  if (r.status === 401) throw new AuthError("The token was refused: expired, revoked, or missing the api scope.");
+  if (!r.ok) throw new Error(`${conn.url} answered HTTP ${r.status}.`);
+  let resp;
+  try { resp = await r.json(); } catch { throw new Error(`${conn.url} didn't answer like GitLab: is the URL right?`); }
   if (resp.errors?.length) throw new Error(`GraphQL: ${resp.errors.map((e) => e.message).join("; ")}`);
   return resp.data;
+}
+
+// Who the token signs in as; GitLab answers null for no user at all.
+export async function whoAmI(conn) {
+  const user = (await graphql(conn, WHO)).currentUser;
+  if (!user) throw new AuthError("The token was refused: expired, revoked, or missing the api scope.");
+  return user.username;
 }
 
 function convert(n) {
@@ -148,7 +133,7 @@ function convert(n) {
 
 // Every opened MR the user authored, is assigned to, is asked to review, or is
 // mentioned in, merged by URL; `roles` says which of those apply.
-export async function fetchMine(host) {
+export async function fetchMine(conn) {
   const lists = [
     { role: "author", include: "withAuthored", after: "authoredAfter", key: "authoredMergeRequests" },
     { role: "reviewer", include: "withReview", after: "reviewAfter", key: "reviewRequestedMergeRequests" },
@@ -162,8 +147,8 @@ export async function fetchMine(host) {
       vars[l.include] = !l.done;
       if (l.cursor) vars[l.after] = l.cursor;
     }
-    const data = await graphql(host, MINE, vars);
-    if (!data.currentUser) throw new Error(`glab is not logged in to ${host}.`);
+    const data = await graphql(conn, MINE, vars);
+    if (!data.currentUser) throw new AuthError("The token was refused: expired, revoked, or missing the api scope.");
     username = data.currentUser.username;
     for (const l of lists) {
       if (l.done) continue;
@@ -175,7 +160,7 @@ export async function fetchMine(host) {
     }
   }
   for (let after = null; ;) {
-    const todos = (await graphql(host, MENTIONED, { after })).currentUser.todos;
+    const todos = (await graphql(conn, MENTIONED, { after })).currentUser.todos;
     // A todo outlives its MR being merged or closed.
     for (const t of todos.nodes) if (t.target?.state === "opened") nodes.push(["mentioned", t.target]);
     if (!todos.pageInfo.hasNextPage) break;
@@ -191,18 +176,18 @@ export async function fetchMine(host) {
 }
 
 // One MR by project and iid, whatever its state.
-export async function fetchOne(host, project, iid) {
-  const data = await graphql(host, ONE, { project, iid: String(iid) });
+export async function fetchOne(conn, project, iid) {
+  const data = await graphql(conn, ONE, { project, iid: String(iid) });
   const n = data.project?.mergeRequest;
   if (!n) throw new Error(`${project}!${iid} not found.`);
   return convert(n);
 }
 
 // The resolvable review threads of an MR, without system notes.
-export async function fetchDiscussions(host, project, iid) {
+export async function fetchDiscussions(conn, project, iid) {
   const out = [];
   for (let after = null; ;) {
-    const data = await graphql(host, DISCUSSIONS, { project, iid: String(iid), after });
+    const data = await graphql(conn, DISCUSSIONS, { project, iid: String(iid), after });
     const page = data.project?.mergeRequest?.discussions;
     if (!page) return out;
     for (const d of page.nodes) {
@@ -223,8 +208,8 @@ export async function fetchDiscussions(host, project, iid) {
   }
 }
 
-export async function resolveDiscussion(host, id, resolve) {
-  const data = await graphql(host, RESOLVE, { id, resolve });
+export async function resolveDiscussion(conn, id, resolve) {
+  const data = await graphql(conn, RESOLVE, { id, resolve });
   const errors = data.discussionToggleResolve?.errors ?? [];
   if (errors.length) throw new Error(errors.join("; "));
 }

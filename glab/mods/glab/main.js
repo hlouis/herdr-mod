@@ -4,7 +4,9 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, shared, setShared, spaces, nextCommand, notify, exec, appHome } from "herdr";
-import { glabHost, fetchMine, fetchOne, fetchDiscussions, resolveDiscussion, parseMrUrl } from "./gitlab.js";
+import { fetchMine, fetchOne, fetchDiscussions, resolveDiscussion, parseMrUrl, whoAmI, AuthError } from "./gitlab.js";
+import { loadConfig, saveConfig, clearConfig, configPath, hostOf, GITLAB_COM } from "./config.js";
+import { settingsView, formUrl } from "./settings.js";
 import { scanSpaces, spaceWith, findRepo } from "./repo.js";
 import * as act from "./actions.js";
 import { Scroller, icon, chip, iconButton } from "./ui.js";
@@ -43,6 +45,11 @@ export default class Glab extends View {
     this.searching = false;
     this.input = InputState.new({ placeholder: "Search title, project or branch" });
     this.input.on("change", (_e, cx) => { this.search = this.input.value(); cx.notify(); });
+    this.urlInput = InputState.new({ placeholder: "https://gitlab.example.com" });
+    this.tokenInput = InputState.new({ placeholder: "glpat-…" });
+    this.tokenInput.set_masked(true);
+    for (const input of [this.urlInput, this.tokenInput]) input.on("change", (_e, cx) => { this.settings.error = ""; cx.notify(); });
+    this.settings = null; // { kind: "com" | "self", busy, error } while the settings page shows
     this.folded = new Set();
     this.sel = null; // the selected MR's url
     this.hovered = null;
@@ -51,31 +58,37 @@ export default class Glab extends View {
     this.repos = [];
     this.spacesKey = null;
     this.avatars = new Set(); // avatar URLs whose file is in CACHE
+    this.conn = null; // { url, token } from config.js
 
-    this.host = glabHost();
-    this.host.catch(() => {});
     cx.spawn(async () => { for (;;) if ((await nextCommand()) === "focus") this.handle.focus(); });
     cx.timer.every(EVERY, (cx) => this.refresh(cx));
-    this.refresh(cx);
+    cx.spawn(async (cx) => {
+      try { this.conn = await loadConfig(); } catch (e) { notify({ title: "GitLab settings", body: `${configPath()}: ${message(e)}`, level: "error" }); }
+      if (this.conn) this.refresh(cx);
+      else this.openSettings();
+      cx.notify();
+    });
   }
 
+  // The last fetch from the instance connected now.
   data() {
-    return shared(STORE) ?? { mrs: [] };
+    const d = shared(STORE);
+    return d && this.conn && d.url === this.conn.url ? d : { mrs: [] };
   }
 
   refresh(cx) {
-    if (this.loading) return;
+    if (this.loading || !this.conn) return;
     this.loading = true;
+    const conn = this.conn;
     cx.notify();
     cx.spawn(async (cx) => {
       try {
-        const host = await this.host;
-        const { username, mrs } = await fetchMine(host);
-        setShared(STORE, { host, username, fetchedAt: Date.now(), error: "", mrs });
-        await this.fetchAvatars(host, mrs);
+        const { username, mrs } = await fetchMine(conn);
+        setShared(STORE, { url: conn.url, username, fetchedAt: Date.now(), error: "", authError: false, mrs });
+        await this.fetchAvatars(conn, mrs);
       } catch (e) {
         // The last good list stays; its age and the error say it is stale.
-        setShared(STORE, { ...this.data(), error: message(e) });
+        setShared(STORE, { ...this.data(), url: conn.url, error: message(e), authError: e instanceof AuthError });
       }
       this.loading = false;
       cx.notify();
@@ -85,11 +98,13 @@ export default class Glab extends View {
   // Which spaces hold which checkouts: read again whenever spaces or their
   // branches change, so a checkout shows up as soon as its space opens.
   rescanIfChanged(cx) {
-    const key = JSON.stringify(spaces().filter((s) => !s.machine).map((s) => [s.id, s.branch, s.folder]));
+    if (!this.conn) return;
+    const host = hostOf(this.conn.url);
+    const key = JSON.stringify([host, spaces().filter((s) => !s.machine).map((s) => [s.id, s.branch, s.folder])]);
     if (key === this.spacesKey) return;
     this.spacesKey = key;
     cx.spawn(async (cx) => {
-      try { this.repos = await scanSpaces(await this.host); } catch { this.repos = []; }
+      try { this.repos = await scanSpaces(host); } catch { this.repos = []; }
       cx.notify();
     });
   }
@@ -103,15 +118,73 @@ export default class Glab extends View {
     return this.avatars.has(mr.projectAvatar) ? `${CACHE}/${avatarFile(mr.projectAvatar)}` : null;
   }
 
-  // GitLab serves project avatars to the API (unlike people's), so glab
-  // downloads each once; a file already there is kept.
-  async fetchAvatars(host, mrs) {
+  // GitLab serves project avatars to the API (unlike people's). `fetch` reads
+  // text only, so curl downloads each once, the token piped from the config
+  // file into its header rather than put on a command line.
+  async fetchAvatars(conn, mrs) {
     const want = new Map(mrs.filter((mr) => mr.projectAvatar && !this.avatars.has(mr.projectAvatar)).map((mr) => [mr.projectAvatar, mr.project]));
     for (const [url, project] of want) {
-      const r = await exec("sh", ["-c", 'mkdir -p "$1" && { [ -s "$1/$2" ] || { glab api --hostname "$3" "projects/$4/avatar" > "$1/$2.part" && mv "$1/$2.part" "$1/$2"; }; }',
-        "sh", `${appHome()}/${CACHE}`, avatarFile(url), host, encodeURIComponent(project)]);
+      const r = await exec("sh", ["-c", 'mkdir -p "$1" && { [ -s "$1/$2" ] || { sed -n \'s/^ *"token": *"\\(.*\\)",*$/PRIVATE-TOKEN: \\1/p\' "$3" | curl -sf -H @- -o "$1/$2.part" "$4" && mv "$1/$2.part" "$1/$2"; }; }',
+        "sh", `${appHome()}/${CACHE}`, avatarFile(url), configPath(), `${conn.url}/api/v4/projects/${encodeURIComponent(project)}/avatar`]);
       if (r.code === 0) this.avatars.add(url);
     }
+  }
+
+  // ---- settings ----
+
+  openSettings() {
+    const url = this.conn?.url ?? "";
+    this.settings = { kind: url && url !== GITLAB_COM ? "self" : url ? "com" : "self", busy: false, error: "" };
+    this.urlInput.set_value(url === GITLAB_COM ? "" : url);
+    this.tokenInput.set_value(this.conn?.token ?? "");
+  }
+
+  closeSettings() {
+    if (!this.conn) return;
+    this.settings = null;
+    this.handle.focus();
+  }
+
+  // Checks the token against the instance, then saves both.
+  connect(cx) {
+    const s = this.settings;
+    const conn = { url: formUrl(this), token: this.tokenInput.value().trim() };
+    if (!conn.url) { s.error = "Enter your GitLab's URL."; return; }
+    if (!conn.token) { s.error = "Paste an access token."; return; }
+    s.busy = true;
+    s.error = "";
+    cx.spawn(async (cx) => {
+      try {
+        const username = await whoAmI(conn);
+        await saveConfig(conn);
+        this.conn = conn;
+        this.spacesKey = null;
+        this.settings = null;
+        notify({ title: "Connected to GitLab", body: `${username} on ${hostOf(conn.url)}`, level: "success", timeout: 3000 });
+        this.refresh(cx);
+      } catch (e) {
+        s.error = message(e);
+      }
+      s.busy = false;
+      cx.notify();
+    });
+  }
+
+  disconnect(cx) {
+    cx.spawn(async (cx) => {
+      try { await clearConfig(); } catch (e) { this.settings.error = message(e); }
+      this.conn = null;
+      this.repos = [];
+      this.detail = null;
+      setShared(STORE, null);
+      this.openSettings();
+      cx.notify();
+    });
+  }
+
+  openTokenPage(cx, url) {
+    const page = `${url}/-/user_settings/personal_access_tokens?name=${encodeURIComponent("Herdr MRs")}&scopes=api`;
+    cx.spawn(async () => { await exec("open", [page]); });
   }
 
   // Why an MR concerns you, in group order.
@@ -185,7 +258,7 @@ export default class Glab extends View {
     cx.notify();
     cx.spawn(async (cx) => {
       try {
-        const threads = await fetchDiscussions(await this.host, mr.project, mr.iid);
+        const threads = await fetchDiscussions(this.conn, mr.project, mr.iid);
         d.threads = [...threads.filter((th) => !th.resolved), ...threads.filter((th) => th.resolved)];
         // The first open thread starts open: it is usually why you came.
         // With none open, the resolved ones show instead of an empty page.
@@ -234,7 +307,7 @@ export default class Glab extends View {
     if (!th) return;
     cx.spawn(async (cx) => {
       try {
-        await resolveDiscussion(await this.host, th.id, !th.resolved);
+        await resolveDiscussion(this.conn, th.id, !th.resolved);
         th.resolved = !th.resolved;
         if (th.resolved) d.open.delete(th.id);
         notify({ title: th.resolved ? "Thread resolved" : "Thread reopened", body: `${d.mr.project.split("/").pop()} !${d.mr.iid}`, level: "success", timeout: 2500 });
@@ -251,13 +324,13 @@ export default class Glab extends View {
     cx.spawn(async (cx) => {
       try {
         const url = await act.clipboard();
-        const host = await this.host;
+        const host = hostOf(this.conn.url);
         const p = parseMrUrl(url);
         if (!p) throw new Error(`The clipboard holds no merge request link: ${url.slice(0, 120) || "(empty)"}`);
-        if (p.host !== host.toLowerCase()) throw new Error(`${p.host} is not ${host}, the host glab is set up for.`);
+        if (p.host !== host) throw new Error(`${p.host} is not ${host}, the GitLab this panel is connected to.`);
         const known = this.data().mrs.find((mr) => mr.iid === p.iid && mr.project.toLowerCase() === p.project.toLowerCase());
-        const mr = known ?? await fetchOne(host, p.project, p.iid);
-        await this.fetchAvatars(host, [mr]);
+        const mr = known ?? await fetchOne(this.conn, p.project, p.iid);
+        await this.fetchAvatars(this.conn, [mr]);
         this.showMr(mr, cx);
       } catch (e) {
         notify({ title: "Merge request from the clipboard", body: message(e), level: "error" });
@@ -271,7 +344,11 @@ export default class Glab extends View {
   key(e, cx) {
     const m = e.modifiers;
     if (m.platform || m.control || m.alt) return;
-    if (this.searching) {
+    // The settings fields take every key but escape, which goes back.
+    if (this.settings) {
+      if (e.key !== "escape" || !this.conn) return;
+      this.closeSettings();
+    } else if (this.searching) {
       if (e.key === "escape") this.clearSearch();
       else if (e.key === "enter") { this.searching = false; this.handle.focus(); }
       else if (e.key === "down" || e.key === "up") this.move(e.key === "down" ? 1 : -1);
@@ -330,8 +407,12 @@ export default class Glab extends View {
       .on_mouse_down("left", () => { if (!this.searching) this.handle.focus(); })
       .on_key_down((e, cx) => this.key(e, cx))
       .child(this.header(t, d))
-      .when(Boolean(d.error), (el) => el.child(div().px(14).py(6).border_b(1).border_color(t.border).text_size(11.5).text_color(t.ansi1).whitespace_normal().child(d.error)))
-      .child(this.detail ? detailView(this, t) : this.listPage(t));
+      .when(Boolean(d.error) && !this.settings, (el) => el.child(h_flex().px(14).py(6).gap(8).items_start().border_b(1).border_color(t.border).text_size(11.5)
+        .child(div().flex_1().text_color(t.ansi1).whitespace_normal().child(d.error))
+        .when(d.authError, (el) => el.child(div().id("err-settings").flex_none().text_color(t.accent).cursor_pointer()
+          .hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => { this.openSettings(); cx.notify(); }).child("Settings")))))
+      .child(this.settings ? settingsView(this, t) : this.detail ? detailView(this, t) : this.listPage(t));
   }
 
   header(t, d) {
@@ -341,10 +422,12 @@ export default class Glab extends View {
       .child(div().font_semibold().child("Merge requests"))
       .when(total > 0, (el) => el.child(chip(t, String(total))))
       .child(div().flex_1())
-      .child(iconButton(t, "hd-search", "search", "Search  /", () => (this.searching ? this.clearSearch() : this.startSearch())))
-      .child(iconButton(t, "hd-paste", "clipboard-paste", "Open the MR link on the clipboard  v", (_e, cx) => this.openFromClipboard(cx)))
-      .child(iconButton(t, "hd-refresh", "refresh-cw", this.loading ? "Refreshing…" : `Refresh  R${d.fetchedAt ? ` · updated ${new Date(d.fetchedAt).toLocaleTimeString()}` : ""}`, (_e, cx) => this.refresh(cx))
-        .when(this.loading, (el) => el.text_color(t.working)));
+      .when(Boolean(this.conn), (el) => el
+        .child(iconButton(t, "hd-search", "search", "Search  /", () => (this.searching ? this.clearSearch() : this.startSearch())))
+        .child(iconButton(t, "hd-paste", "clipboard-paste", "Open the MR link on the clipboard  v", (_e, cx) => this.openFromClipboard(cx)))
+        .child(iconButton(t, "hd-refresh", "refresh-cw", this.loading ? "Refreshing…" : `Refresh  R${d.fetchedAt ? ` · updated ${new Date(d.fetchedAt).toLocaleTimeString()}` : ""}`, (_e, cx) => this.refresh(cx))
+          .when(this.loading, (el) => el.text_color(t.working))))
+      .child(iconButton(t, "hd-settings", "settings", "GitLab connection", () => (this.settings ? this.closeSettings() : this.openSettings())));
   }
 
   listPage(t) {

@@ -2,7 +2,7 @@
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex, TextView } from "gpui-base";
-import { icon, avatar, projectAvatar, pipelineIcon, pipelineLabel, ago, chip, iconButton } from "./ui.js";
+import { icon, avatar, projectAvatar, pipelineIcon, pipelineLabel, ago, chip, iconButton, button } from "./ui.js";
 import { MERGE_PROBLEM, pendingReviewers } from "./list.js";
 
 const base = (project) => project.split("/").pop();
@@ -14,17 +14,6 @@ function sectionHead(t, id, title, extra, onClick, open) {
     .when(Boolean(extra), (el) => el.child(div().child(extra)))
     .child(div().flex_1())
     .when(open === false, (el) => el.child(icon("chevron-right", 11)));
-}
-
-// `onClick` null: shown disabled, `tip` says why.
-function button(t, id, name, label, onClick, { primary = false, tip = "" } = {}) {
-  return h_flex().id(id).h(28).px(10).gap(6).items_center().rounded(7).text_size(12)
-    .when(!onClick, (el) => el.bg(t.raised).text_color(t.dim))
-    .when(Boolean(onClick) && primary, (el) => el.cursor_pointer().bg(t.solid).text_color(t.solid_foreground))
-    .when(Boolean(onClick) && !primary, (el) => el.cursor_pointer().border_1().border_color(t.border).text_color(t.foreground).hover((s) => s.bg(t.hover)))
-    .when(Boolean(onClick), (el) => el.on_click(onClick))
-    .when(Boolean(tip), (el) => el.tooltip(tip))
-    .child(icon(name, 13)).child(label);
 }
 
 function facts(v, t, mr) {

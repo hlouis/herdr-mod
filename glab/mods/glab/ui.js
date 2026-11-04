@@ -3,7 +3,7 @@
 // which virtual-list rows can't have).
 
 import { div, svg, image } from "gpui-kit";
-import { v_flex } from "gpui-base";
+import { h_flex, v_flex } from "gpui-base";
 
 // The colors Herdr's own space tiles use, with white initials on them.
 const TILE = ["#22a99a", "#e3814f", "#5b8def", "#8b7cf6", "#3fae6a", "#d9649a"];
@@ -65,6 +65,19 @@ export function iconButton(t, id, name, tip, onClick, size = 14) {
     .tooltip(tip)
     .on_click((e, cx) => { cx.stop_propagation(); onClick(e, cx); cx.notify(); })
     .child(icon(name, size));
+}
+
+// A labelled button; `primary` fills it. `onClick` null: shown disabled,
+// `tip` says why. Clicking redraws the panel, as iconButton does.
+export function button(t, id, name, label, onClick, { primary = false, tip = "" } = {}) {
+  return h_flex().id(id).h(28).px(10).gap(6).items_center().rounded(7).text_size(12).flex_none()
+    .when(!onClick, (el) => el.bg(t.raised).text_color(t.dim))
+    .when(Boolean(onClick) && primary, (el) => el.cursor_pointer().bg(t.solid).text_color(t.solid_foreground))
+    .when(Boolean(onClick) && !primary, (el) => el.cursor_pointer().border_1().border_color(t.border).text_color(t.foreground).hover((s) => s.bg(t.hover)))
+    .when(Boolean(onClick), (el) => el.on_click((e, cx) => { onClick(e, cx); cx.notify(); }))
+    .when(Boolean(tip), (el) => el.tooltip(tip))
+    .when(Boolean(name), (el) => el.child(icon(name, 13)))
+    .child(label);
 }
 
 // A column of rows scrolled by the script: rows report their heights, so the
