@@ -17,6 +17,7 @@ check it out into a worktree space, or review it in
   (0.1.12); later changes to `main` don't reach it.
 - A GitLab personal access token with the `api` scope, on GitLab.com or a
   self-managed instance.
+- [agents-menu](../agents-menu/): the layout's agents list.
 - `git`, `curl`.
 - Optional: `tuicr` for Review, which itself needs the `glab` CLI.
 
@@ -28,6 +29,7 @@ By hand:
 ```sh
 cp layouts/glab.json layouts/glab.svg ~/.config/herdr-app/layouts/
 cp -R mods/glab mods/glab-tabs ~/.config/herdr-app/mods/
+cp -R ../agents-menu/mods/agents-menu ~/.config/herdr-app/mods/
 # merge keys.json into ~/.config/herdr-app/keys.json
 herdr-app do layout.switch --name glab
 ```
