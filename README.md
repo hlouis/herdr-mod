@@ -5,6 +5,7 @@ Layouts and mods for the [Herdr](https://herdr.dev) desktop app.
 | Name | Kind | What it is |
 |---|---|---|
 | [glab](glab/) | layout | GitLab merge requests in a side panel: review threads, worktree checkout, tuicr review |
+| [agents-menu](agents-menu/) | mod | Herdr's agents list with a right-click menu: copy address, pin, peek, kill |
 
 ## Install one
 
