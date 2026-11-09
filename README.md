@@ -38,3 +38,12 @@ follow symlinks. Check every mod after a change:
 ./sync.sh glab
 herdr-app check ~/.config/herdr-app/mods/glab
 ```
+
+`ghostty2herdr.py` turns a Ghostty theme file into a Herdr `themes/<name>.json`.
+Herdr has no selection text color, so a theme that inverts selected text (dark
+selection, light text) needs a light `selection` passed in:
+
+```sh
+python3 -I ghostty2herdr.py "/Applications/Ghostty.app/Contents/Resources/ghostty/themes/Catppuccin Latte" \
+  ~/.config/herdr-app/themes/catppuccin-latte.json '{"selection":"#ccd0da"}'
+```
