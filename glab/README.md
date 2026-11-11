@@ -14,7 +14,8 @@ check it out into a worktree space, or review it in
 ## Requirements
 
 - The Herdr app, macOS. The layout is a copy of Herdr's `main` layout
-  (0.1.12); later changes to `main` don't reach it.
+  (version in `cloned_from` in `layouts/glab.json`); later changes to `main`
+  don't reach it.
 - A GitLab personal access token with the `api` scope, on GitLab.com or a
   self-managed instance.
 - [agents-menu](../agents-menu/): the layout's agents list.

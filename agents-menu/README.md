@@ -12,7 +12,7 @@ Everything else is Herdr's `agents` mod as it ships.
 
 ## Requirements
 
-- The Herdr app. The mod is a copy of Herdr's `agents` mod (0.1.13, see
+- The Herdr app. The mod is a copy of Herdr's `agents` mod (version in
   `cloned_from` in `mod.json`); later changes to `agents` don't reach it.
 
 ## Install
