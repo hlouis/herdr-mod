@@ -80,8 +80,9 @@ The panel is a card like Changes: 10px corners, `background` fill, 1px
 
 ## How it behaves
 
-- **Opening**: the MRs button or `cmd-shift-m` (`glab-tabs.mrs`) toggles the
-  panel. Like Files and Changes, each space remembers whether it was open.
+- **Opening**: the MRs button, `cmd-shift-m` or the palette entry "Toggle
+  merge requests" (all `glab-tabs.mrs`) toggles the panel. Like Files and
+  Changes, each space remembers whether it was open.
 - **Data**: fetched when the panel starts, every 5 minutes (also while
   hidden), on refresh (`R` or the button) and after a thread is resolved or
   reopened. The last fetch is kept in shared state, so the panel shows it at
@@ -126,7 +127,7 @@ The panel is a card like Changes: 10px corners, `background` fill, 1px
 - `mods/glab-tabs`: a clone of the shipped `tabs` (`mod.clone`). It adds the
   MRs panel button (always offered, whatever `workspace.panels` says), a
   `toggle(id)` the buttons share, and a `nextCommand` loop that toggles the MR
-  panel on `mrs`.
+  panel on `mrs`. Its `mod.json` puts `glab-tabs.mrs` in the command palette.
 - `mods/glab` (`mod.json`: `place: none`, `focusable: true`):
   - `main.js`: state, refresh, keys, page switching.
   - `list.js`, `detail.js`, `settings.js`: the three pages.

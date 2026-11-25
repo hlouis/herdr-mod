@@ -40,10 +40,10 @@ previous layout; deleting the copied files removes it.
 
 ## Set up
 
-Open the panel with the **MRs** button or `cmd-shift-m`. The first time, it
-asks for your GitLab: pick GitLab.com or enter your instance's URL, follow
-"Create a token" (the `api` scope comes pre-filled), paste the token and
-Connect. The connection is saved to `~/.config/herdr-app/glab.json`, readable
+Open the panel with the **MRs** button, `cmd-shift-m`, or "Toggle merge
+requests" in the command palette. The first time, it asks for your GitLab:
+pick GitLab.com or enter your instance's URL, follow "Create a token" (the
+`api` scope comes pre-filled), paste the token and Connect. The connection is saved to `~/.config/herdr-app/glab.json`, readable
 only by you; the gear in the panel's header changes or removes it.
 
 ## Use

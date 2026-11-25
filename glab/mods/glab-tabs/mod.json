@@ -1,6 +1,9 @@
 {
   "place": "none",
   "title": "Tabs",
+  "palette": [
+    { "title": "Toggle merge requests", "command": "glab-tabs.mrs", "words": "gitlab glab mr mrs pull request" }
+  ],
   "cloned_from": {
     "name": "tabs",
     "version": "0.1.18"
